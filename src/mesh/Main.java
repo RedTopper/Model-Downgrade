@@ -1,6 +1,7 @@
 package mesh;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
@@ -48,60 +49,45 @@ public class Main {
 		//Main program
 		try {
 			
-			//get count
+			//Get the time the reader started parsing the file.
+			long start = System.currentTimeMillis();
+			
+			//Get counts of vertices and polygons.
 			byte[] verts = new byte[8];
 			file.read(verts, 0, 8);
 			ByteBuffer bb = ByteBuffer.wrap(verts);
 			bb.order(ByteOrder.LITTLE_ENDIAN);
-			int count = bb.getInt();
-			int groups = bb.getInt(); //Seems to be (count / 3).
+			int triadCount = bb.getInt();
+			int polyCount = bb.getInt();
 			
-			//create variables.
-			Triad[] triads = new Triad[count];
-			byte[] footer = new byte[count * 4];
+			//Create variables.
+			Triad[] triads = new Triad[triadCount];
+			Poly[] polys = new Poly[polyCount];
+			byte[] footer = new byte[polyCount * 3 * 4];
 			
-			//read file.
-			for(int i = 0; i < count; i++) {
+			//Read vertices.
+			for(int i = 0; i < triadCount; i++) {
 				triads[i] = new Triad(file);
 			}
 			
-			//should take us to the end of the file.
-			file.read(footer, 0, count * 4);
+			//Read footer.
+			file.read(footer, 0, polyCount * 3 * 4);
 			bb = ByteBuffer.wrap(footer);
 			bb.order(ByteOrder.LITTLE_ENDIAN);
 			
-			//check footer (does this matter?)
-			for(int i = 0; i < count; i++) {
-				int check = bb.getInt();
-				if(check != i) {
-					System.out.println("There was an error reading the footer!");
-					System.out.println("Check failed at number " + check + ".");
-					break;
-				}
+			//Create polygons from footer.
+			for(int i = 0; i < polyCount; i++) {
+				polys[i] = new Poly(triads[bb.getInt()], triads[bb.getInt()], triads[bb.getInt()]);
 			}
 			
-			long time = System.currentTimeMillis();
+			//Get the time the reader stopped parsing the file.
+			long time = System.currentTimeMillis() - start;
 			
-			//print everything.
-			System.out.println("---- BEGIN DECODED MESH ----");
+			//Run user's code.
+			doMagicWithData(polys);
 			
-			//Set up printer based on user input
-			PrintStream out = null;
-			if(option.equals("yes")) {
-				out = new PrintStream(new FileOutputStream("output.mesh"));
-				System.out.println("(Output differed to file 'output.mesh')");
-			} else {
-				out = System.out;
-			}
-			
-			//Print more.
-			out.println("version 1.00");
-			out.println(groups);
-			for(Triad triad : triads) {
-				out.print(triad);
-			}
-			System.out.println("---- END DECODED MESH ----");
-			System.out.println("Processed " + count + " triads, composing of " + groups + " group(s) in " + ((double)(System.currentTimeMillis() - time) / 1000.0) + " seconds." );
+			//Print the mesh as version 1.00
+			doPrintAsVersionOne(polys, option, time, triadCount, polyCount);
 			
 			file.close();
 		} catch (IOException e) {
@@ -111,5 +97,39 @@ public class Main {
 		
 		System.out.println("Goodbye!");
 		reader.close();
+	}
+
+	private static void doPrintAsVersionOne(Poly[] polys, String option, long time, int triadCount, int polyCount) throws FileNotFoundException {
+		//Print header.
+		System.out.println("---- BEGIN DECODED MESH ----");
+		
+		//Set up printer based on user input.
+		PrintStream out = null;
+		if(option.equals("yes")) {
+			out = new PrintStream(new FileOutputStream("output.mesh"));
+			System.out.print("(Output differed to file 'output.mesh')");
+		} else {
+			out = System.out;
+		}
+		
+		//Print actual file in version 1.00 format.
+		out.println("version 1.00");
+		out.println(polyCount);
+		for(Poly p : polys) {
+			out.print(p.a.toString() + p.b.toString() + p.c.toString());
+		}
+		System.out.println("\n---- END DECODED MESH ----");
+		System.out.println("Processed " + triadCount + " triads, composing of " + polyCount + " poly(s) in " + ((double)time / 1000.0) + " seconds." );
+	}
+
+	/**
+	 * README:
+	 * 
+	 * At this point in the code the file has been parsed. All of the polygons
+	 * have been inserted into the polys[] array for you to use, manipulate, edit,
+	 * or whatever you want. You can use this stub method do whatever you want.
+	 */
+	private static void doMagicWithData(Poly[] polys) {
+		// TODO Auto-generated method stub
 	}
 }
